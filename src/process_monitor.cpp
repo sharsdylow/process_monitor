@@ -1,9 +1,12 @@
+// process_monitor.cpp
 #include "process_monitor.hpp"
 #include <dirent.h>
 #include <fstream>
 #include <iostream>
 #include <sys/types.h>
 #include <signal.h>
+#include <sstream>
+#include <iomanip>
 
 ProcessMonitor::ProcessMonitor() = default;
 
@@ -28,19 +31,110 @@ void ProcessMonitor::stop() {
     }
 }
 
+ProcessInfo ProcessMonitor::readProcessInfo(int pid) {
+    ProcessInfo info;
+    info.pid = pid;
+    info.name = readProcessName(pid);
+    info.status = readProcessStatus(pid);
+    info.memory_usage = readProcessMemory(pid);
+    
+    // Read CPU stats
+    std::ifstream stat_file("/proc/" + std::to_string(pid) + "/stat");
+    if (stat_file) {
+        std::string line;
+        std::getline(stat_file, line);
+        std::istringstream iss(line);
+        
+        std::string unused;
+        for (int i = 0; i < 13; ++i) iss >> unused;
+        
+        iss >> info.utime >> info.stime;
+        for (int i = 0; i < 4; ++i) iss >> unused;
+        iss >> info.starttime;
+    }
+    
+    return info;
+}
+
+std::string ProcessMonitor::readProcessName(int pid) {
+    std::ifstream comm_file("/proc/" + std::to_string(pid) + "/comm");
+    std::string name;
+    if (comm_file) {
+        std::getline(comm_file, name);
+    }
+    return name;
+}
+
+std::string ProcessMonitor::readProcessStatus(int pid) {
+    std::ifstream status_file("/proc/" + std::to_string(pid) + "/status");
+    std::string line;
+    while (std::getline(status_file, line)) {
+        if (line.substr(0, 6) == "State:") {
+            return line.substr(7);
+        }
+    }
+    return "unknown";
+}
+
+size_t ProcessMonitor::readProcessMemory(int pid) {
+    std::ifstream status_file("/proc/" + std::to_string(pid) + "/status");
+    std::string line;
+    while (std::getline(status_file, line)) {
+        std::string name = line.substr(0, 6);
+        if (name == "VmRSS:") {
+            size_t kb;
+            std::istringstream iss(line.substr(7));
+            iss >> kb;
+            return kb;
+        }
+    }
+    return 0;
+}
+
+double ProcessMonitor::calculateCPUUsage(const ProcessInfo& current, const ProcessInfo& previous) {
+    unsigned long total_time = total_time_current_ - total_time_prev_;
+    if (total_time == 0) return 0.0;
+    
+    unsigned long process_time = (current.utime + current.stime) - 
+                               (previous.utime + previous.stime);
+    
+    return (process_time * 100.0) / total_time;
+}
+
 void ProcessMonitor::collectData() {
     while (running_) {
         std::vector<ProcessInfo> new_processes;
+        
+        // Read system CPU time
+        std::ifstream stat_file("/proc/stat");
+        if (stat_file) {
+            std::string line;
+            std::getline(stat_file, line);
+            std::istringstream iss(line);
+            std::string cpu;
+            unsigned long user, nice, system, idle, iowait, irq, softirq;
+            iss >> cpu >> user >> nice >> system >> idle >> iowait >> irq >> softirq;
+            
+            total_time_prev_ = total_time_current_;
+            total_time_current_ = user + nice + system + idle + iowait + irq + softirq;
+        }
+        
         DIR* proc_dir = opendir("/proc");
         if (proc_dir) {
             struct dirent* entry;
             while ((entry = readdir(proc_dir)) != nullptr) {
-                // Check if entry is a process (numeric directory)
                 if (entry->d_type == DT_DIR && isdigit(entry->d_name[0])) {
-                    ProcessInfo info;
-                    info.pid = std::stoi(entry->d_name);
-                    // Read process info from /proc/[pid]/...
-                    // TODO: Implement full process info reading
+                    int pid = std::stoi(entry->d_name);
+                    ProcessInfo info = readProcessInfo(pid);
+                    
+                    // Calculate CPU usage if we have previous data
+                    auto it = previous_processes_.find(pid);
+                    if (it != previous_processes_.end()) {
+                        info.cpu_usage = calculateCPUUsage(info, it->second);
+                    } else {
+                        info.cpu_usage = 0.0;
+                    }
+                    
                     new_processes.push_back(info);
                 }
             }
@@ -50,31 +144,41 @@ void ProcessMonitor::collectData() {
         {
             std::lock_guard<std::mutex> lock(processes_mutex_);
             processes_ = std::move(new_processes);
+            
+            // Update previous processes map
+            previous_processes_.clear();
+            for (const auto& proc : processes_) {
+                previous_processes_[proc.pid] = proc;
+            }
         }
         
-        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 10Hz refresh rate
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 
 void ProcessMonitor::updateUI() {
     while (running_) {
-        // Get current process list
         std::vector<ProcessInfo> current_processes;
         {
             std::lock_guard<std::mutex> lock(processes_mutex_);
             current_processes = processes_;
         }
         
-        // Update UI (basic console output for now)
         system("clear");
         std::cout << "Process Monitor\n";
-        std::cout << "PID\tNAME\tCPU%\tMEM\tSTATUS\n";
+        std::cout << std::setw(8) << "PID" 
+                  << std::setw(20) << "NAME"
+                  << std::setw(10) << "CPU%"
+                  << std::setw(12) << "MEM(KB)"
+                  << std::setw(20) << "STATUS\n";
+        std::cout << std::string(70, '-') << "\n";
+        
         for (const auto& proc : current_processes) {
-            std::cout << proc.pid << "\t" 
-                      << proc.name << "\t"
-                      << proc.cpu_usage << "\t"
-                      << proc.memory_usage << "\t"
-                      << proc.status << "\n";
+            std::cout << std::setw(8) << proc.pid
+                      << std::setw(20) << proc.name
+                      << std::setw(10) << std::fixed << std::setprecision(1) << proc.cpu_usage
+                      << std::setw(12) << proc.memory_usage
+                      << std::setw(20) << proc.status << "\n";
         }
         
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
