@@ -7,15 +7,6 @@
 #include <unistd.h>
 #include <termios.h>
 
-void printHelp() {
-    std::cout << "Available commands:\n"
-              << "  help           - Show this help message\n"
-              << "  quit           - Exit the program\n"
-              << "  kill <pid>     - Terminate a process\n"
-              << "  suspend <pid>  - Suspend a process\n"
-              << "  resume <pid>   - Resume a suspended process\n";
-}
-
 // In main.cpp:
 int main() {
     ProcessMonitor monitor;
@@ -48,7 +39,12 @@ int main() {
                     if (command == "quit") {
                         break;
                     } else if (command == "help") {
-                        printHelp();
+                        output  << "Available commands:\n"
+                                << "  help           - Show this help message\n"
+                                << "  quit           - Exit the program\n"
+                                << "  kill <pid>     - Terminate a process\n"
+                                << "  suspend <pid>  - Suspend a process\n"
+                                << "  resume <pid>   - Resume a suspended process\n";
                     } else if (command == "kill" || command == "suspend" || command == "resume") {
                         int pid;
                         if (iss >> pid) {
@@ -78,6 +74,8 @@ int main() {
         }
     }
     
+    // Restore terminal settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
     monitor.stop();
     return 0;
 }

@@ -8,7 +8,7 @@
 #include <condition_variable>
 #include <unordered_map>
 
-#define RATE 1000
+#define RATE 100
 
 // In process_monitor.hpp, add:
 struct CommandOutput {

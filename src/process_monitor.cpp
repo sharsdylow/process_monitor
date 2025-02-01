@@ -205,17 +205,19 @@ void ProcessMonitor::updateUI() {
         std::cout << std::string(70, '-') << "\n";
         
         // Display current command and output
+        if (!current_output.empty()) {
+            std::cout << current_output << "\n";
+        }
+
         if (!current_command.empty()) {
             std::cout << "\033[K";  // Clear line
-            std::cout << "Command > " << current_command << "\n";
-            if (!current_output.empty()) {
-                std::cout << current_output << "\n";
-            }
+            std::cout << "Command > " << current_command << std::flush;
+        }else{
+            // Display current prompt
+            std::cout << "\033[K";  // Clear line
+            std::cout << "Command > " << std::flush;
         }
         
-        // Display current prompt
-        std::cout << "\033[K";  // Clear line
-        std::cout << "Command > " << std::flush;
         
         std::this_thread::sleep_for(std::chrono::milliseconds(RATE));
     }
