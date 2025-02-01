@@ -44,6 +44,7 @@ public:
     std::vector<ProcessInfo> getProcessList() const;
     std::string current_command;
     std::string current_output;
+    size_t cursor_pos{0};
 
 private:
     void collectData();

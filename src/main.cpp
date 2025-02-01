@@ -12,21 +12,26 @@ int main() {
     ProcessMonitor monitor;
     monitor.start();
     
-    // Setup terminal for raw input
+    // Setup terminal for raw input mode
     struct termios old_tio, new_tio;
-    tcgetattr(STDIN_FILENO, &old_tio);
-    new_tio = old_tio;
-    new_tio.c_lflag &= (~ICANON & ~ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
+    tcgetattr(STDIN_FILENO, &old_tio);  // Get current terminal settings
+    new_tio = old_tio;                  // Make a copy to modify
+
+    // Modify terminal settings
+    new_tio.c_lflag &= (~ICANON & ~ECHO);  // Disable canonical mode and echo
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);  // Apply new settings
+
     
     std::string current_line;
+    size_t cursor_pos = 0;
     char ch;
 
     while (true) {
         if(read(STDIN_FILENO, &ch, 1) > 0){
             if (ch == 127 || ch == '\b') {  // Backspace
-                if (!current_line.empty()) {
-                    current_line.pop_back();
+                if (cursor_pos > 0) {
+                    current_line.erase(cursor_pos - 1, 1);
+                    cursor_pos--;
                 }
             }
             else if (ch == '\n') {
@@ -64,13 +69,37 @@ int main() {
                         output << "Unknown command. Type 'help' for available commands.";
                     }
                     monitor.current_output = output.str();
-                    current_line = "";
+                    current_line.clear();
+                    cursor_pos = 0;
                 }
             }
-            else{
-                current_line += ch;
+            else if (ch == 27) {  // Escape sequence
+                char seq[3];
+                if (read(STDIN_FILENO, &seq[0], 1) > 0) {
+                    if (seq[0] == '[') {
+                        if (read(STDIN_FILENO, &seq[1], 1) > 0) {
+                            switch(seq[1]) {
+                                case 'C':  // Right arrow
+                                    if (cursor_pos < current_line.length()) {
+                                        cursor_pos++;
+                                    }
+                                    break;
+                                case 'D':  // Left arrow
+                                    if (cursor_pos > 0) {
+                                        cursor_pos--;
+                                    }
+                                    break;
+                            }
+                        }
+                    }
+                }
+            }
+            else {  // Regular character
+                current_line.insert(cursor_pos, 1, ch);
+                cursor_pos++;
             }
             monitor.current_command = current_line;
+            monitor.cursor_pos = cursor_pos;
         }
     }
     

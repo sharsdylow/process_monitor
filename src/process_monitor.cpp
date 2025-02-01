@@ -244,16 +244,13 @@ void ProcessMonitor::updateUI() {
             std::cout << current_output << "\n";
         }
 
-        if (!current_command.empty()) {
-            std::cout << "\033[K";  // Clear line
-            std::cout << "Command > " << current_command << std::flush;
-        }else{
-            // Display current prompt
-            std::cout << "\033[K";  // Clear line
-            std::cout << "Command > " << std::flush;
-        }
-        
-        
+        std::cout << "\033[K";  // Clear line
+        std::cout << "Command > " << current_command;
+        // Calculate prompt length and cursor position
+        const int prompt_len = 11;  // "Command > "
+        // Move cursor to the correct position
+        std::cout << "\033[" << w.ws_row << ";" << (prompt_len + cursor_pos) << "H" << std::flush;
+
         std::this_thread::sleep_for(std::chrono::milliseconds(RATE));
     }
 }
