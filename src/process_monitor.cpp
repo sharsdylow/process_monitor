@@ -158,23 +158,37 @@ void ProcessMonitor::collectData() {
     }
 }
 
+// In process_monitor.cpp, add command history management:
+void ProcessMonitor::addCommandHistory(const std::string& command, const std::string& output) {
+    std::lock_guard<std::mutex> lock(history_mutex_);
+    command_history_.push_back({command, output});
+}
+
 void ProcessMonitor::updateUI() {
-    const int reserved_lines = 2;  // Space for input prompt and command
-    std::string input_line;        // To store current input line
+    bool first_run = true;
+    int last_displayed_lines = 0;
+    const int process_display_limit = 10;  // Limit process list height
 
     while (running_) {
         std::vector<ProcessInfo> current_processes;
+        std::vector<CommandOutput> current_history;
         {
             std::lock_guard<std::mutex> lock(processes_mutex_);
             current_processes = processes_;
+            std::lock_guard<std::mutex> history_lock(history_mutex_);
+            current_history = command_history_;
         }
         
-        // Save cursor position and clear screen
-        std::cout << "\033[s";  // Save cursor position
-        std::cout << "\033[2J"; // Clear entire screen
-        std::cout << "\033[H";  // Move cursor to home position
+        // If first run, clear screen
+        if (first_run) {
+            std::cout << "\033[2J\033[H";
+            first_run = false;
+        } else {
+            // Move cursor to top
+            std::cout << "\033[H";
+        }
         
-        // Header
+        // Display process list (top section)
         std::cout << "Process Monitor (Type 'help' for commands)\n";
         std::cout << std::setw(8) << "PID" 
                   << std::setw(20) << "NAME"
@@ -183,36 +197,33 @@ void ProcessMonitor::updateUI() {
                   << std::setw(20) << "STATUS\n";
         std::cout << std::string(70, '-') << "\n";
         
-        // Get terminal size
-        struct winsize w;
-        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-        int terminal_height = w.ws_row - reserved_lines;
-        
-        // Display processes
-        int displayed_lines = 0;
-        for (const auto& proc : current_processes) {
-            if (displayed_lines >= terminal_height - 4) {
-                break;
-            }
-            
+        // Display limited number of processes
+        for (size_t i = 0; i < std::min(current_processes.size(), 
+                                      static_cast<size_t>(process_display_limit)); ++i) {
+            const auto& proc = current_processes[i];
+            std::cout << "\033[K";  // Clear line
             std::cout << std::setw(8) << proc.pid
                       << std::setw(20) << proc.name
                       << std::setw(10) << std::fixed << std::setprecision(1) << proc.cpu_usage
                       << std::setw(12) << proc.memory_usage
                       << std::setw(20) << proc.status << "\n";
-            
-            displayed_lines++;
         }
         
-        // Add separator line
+        // Separator between process list and command history
         std::cout << std::string(70, '-') << "\n";
         
-        // Move to last line and show prompt
-        std::cout << "\033[" << w.ws_row << ";1H"; // Move to last line
-        std::cout << "Command > " << std::flush;
+        // Display command history
+        for (const auto& cmd : current_history) {
+            std::cout << "\033[K";  // Clear line
+            std::cout << "Command > " << cmd.command << "\n";
+            if (!cmd.output.empty()) {
+                std::cout << cmd.output << "\n";
+            }
+        }
         
-        // Move cursor back to saved position
-        std::cout << "\033[u" << std::flush;
+        // Display current prompt
+        std::cout << "\033[K";  // Clear line
+        std::cout << "Command > " << std::flush;
         
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }

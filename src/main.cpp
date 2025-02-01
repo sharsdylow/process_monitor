@@ -15,49 +15,44 @@ void printHelp() {
               << "  resume <pid>   - Resume a suspended process\n";
 }
 
+// In main.cpp:
 int main() {
     ProcessMonitor monitor;
     monitor.start();
     
-    // Move cursor to the last line
-    struct winsize w;
-    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-    std::cout << "\033[" << w.ws_row << ";1H";
-    
-    std::cout << "Command > " << std::flush;
-    
     std::string line;
     while (std::getline(std::cin, line)) {
-        // Process commands
-        std::istringstream iss(line);
-        std::string command;
-        iss >> command;
-        
-        if (command == "quit") {
-            break;
-        } else if (command == "help") {
-            printHelp();
-        } else if (command == "kill" || command == "suspend" || command == "resume") {
-            int pid;
-            if (iss >> pid) {
-                bool success = false;
-                if (command == "kill") {
-                    success = monitor.terminateProcess(pid);
-                } else if (command == "suspend") {
-                    success = monitor.suspendProcess(pid);
-                } else if (command == "resume") {
-                    success = monitor.resumeProcess(pid);
+        if (!line.empty()) {
+            std::stringstream output;
+            std::istringstream iss(line);
+            std::string command;
+            iss >> command;
+            
+            if (command == "quit") {
+                break;
+            } else if (command == "help") {
+                printHelp();
+            } else if (command == "kill" || command == "suspend" || command == "resume") {
+                int pid;
+                if (iss >> pid) {
+                    bool success = false;
+                    if (command == "kill") {
+                        success = monitor.terminateProcess(pid);
+                    } else if (command == "suspend") {
+                        success = monitor.suspendProcess(pid);
+                    } else if (command == "resume") {
+                        success = monitor.resumeProcess(pid);
+                    }
+                    output << (success ? "Success" : "Failed");
+                } else {
+                    output << "Invalid PID";
                 }
-                std::cout << (success ? "Success" : "Failed") << "\n";
             } else {
-                std::cout << "Invalid PID\n";
+                output << "Unknown command. Type 'help' for available commands.";
             }
-        } else if (!command.empty()) {
-            std::cout << "Unknown command. Type 'help' for available commands.\n";
+            
+            monitor.addCommandHistory(line, output.str());
         }
-        
-        // Show prompt again
-        std::cout << "Command > " << std::flush;
     }
     
     monitor.stop();
