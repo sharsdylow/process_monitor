@@ -10,6 +10,7 @@
 #include <sys/ioctl.h>  // For ioctl and winsize
 #include <unistd.h>
 #include <algorithm>
+#include <pwd.h>
 
 ProcessMonitor::ProcessMonitor() = default;
 
@@ -40,6 +41,7 @@ ProcessInfo ProcessMonitor::readProcessInfo(int pid) {
     info.name = readProcessName(pid);
     info.status = readProcessStatus(pid);
     info.memory_usage = readProcessMemory(pid);
+    info.user = readProcessUser(pid);
     
     // Read CPU stats
     std::ifstream stat_file("/proc/" + std::to_string(pid) + "/stat");
@@ -77,6 +79,28 @@ std::string ProcessMonitor::readProcessStatus(int pid) {
         }
     }
     return "unknown";
+}
+
+std::string ProcessMonitor::readProcessUser(int pid) {
+    std::ifstream status_file("/proc/" + std::to_string(pid) + "/status");
+    uid_t uid;
+    std::string user;
+    std::string line;
+    while (std::getline(status_file, line)) {
+        if (line.substr(0, 4) == "Uid:") {
+            std::istringstream iss(line.substr(5));
+            iss >> uid;
+            break;
+        }
+    }
+
+    struct passwd *pw = getpwuid(uid);
+    if(pw != nullptr){
+        user = pw->pw_name;
+        return user;
+    }else{
+        return "Unknown";
+    }
 }
 
 size_t ProcessMonitor::readProcessMemory(int pid) {
@@ -187,10 +211,11 @@ void ProcessMonitor::updateUI() {
         std::cout << "Process Monitor (Type 'help' for commands)\n";
         std::cout << std::setw(8) << "PID" 
                   << std::setw(20) << "NAME"
+                  << std::setw(15) << "USER"
                   << std::setw(10) << "CPU%"
                   << std::setw(12) << "MEM(KB)"
                   << std::setw(20) << "STATUS\n";
-        std::cout << std::string(70, '-') << "\n";
+        std::cout << std::string(85, '-') << "\n";
         
         // Display limited number of processes
         for (size_t i = 0; i < std::min(current_processes.size(), 
@@ -199,6 +224,7 @@ void ProcessMonitor::updateUI() {
             std::cout << "\033[K";  // Clear line
             std::cout << std::setw(8) << proc.pid
                       << std::setw(20) << proc.name
+                      << std::setw(15) << proc.user
                       << std::setw(10) << std::fixed << std::setprecision(1) << proc.cpu_usage
                       << std::setw(12) << proc.memory_usage
                       << std::setw(20) << proc.status << "\n";
@@ -211,7 +237,7 @@ void ProcessMonitor::updateUI() {
         }
         
         // Separator between process list and command history
-        std::cout << std::string(70, '-') << "\n";
+        std::cout << std::string(85, '-') << "\n";
         
         // Display current command and output
         if (!current_output.empty()) {

@@ -56,7 +56,7 @@ int main() {
                             } else if (command == "resume") {
                                 success = monitor.resumeProcess(pid);
                             }
-                            output << command << " " << pid << (success ? "Success " : "Failed ");
+                            output << (success ? "Success " : "Failed ") << command << " " << pid;
                         } else {
                             output << "Invalid PID";
                         }

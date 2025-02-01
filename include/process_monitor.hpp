@@ -19,6 +19,7 @@ struct CommandOutput {
 struct ProcessInfo {
     int pid;
     std::string name;
+    std::string user;
     double cpu_usage;
     size_t memory_usage;  // in KB
     std::string status;
@@ -52,6 +53,7 @@ private:
     ProcessInfo readProcessInfo(int pid);
     std::string readProcessName(int pid);
     std::string readProcessStatus(int pid);
+    std::string readProcessUser(int pid);
     size_t readProcessMemory(int pid);
     double calculateCPUUsage(const ProcessInfo& current, const ProcessInfo& previous);
     
