@@ -34,7 +34,7 @@ public:
     
     void start();
     void stop();
-    void addCommandHistory(const std::string& command, const std::string& output);
+    void setCurrentCommand(const std::string& command, const std::string& output);
     
     bool terminateProcess(int pid);
     bool suspendProcess(int pid);
@@ -65,6 +65,6 @@ private:
     std::thread ui_thread_;
     std::condition_variable cv_;
 
-    std::vector<CommandOutput> command_history_;
-    mutable std::mutex history_mutex_;
+    std::string current_command_;
+    std::string current_output_;
 };

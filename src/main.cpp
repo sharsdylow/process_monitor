@@ -5,6 +5,7 @@
 #include <sstream>
 #include <sys/ioctl.h>  // For ioctl and winsize
 #include <unistd.h>
+#include <termios.h>
 
 void printHelp() {
     std::cout << "Available commands:\n"
@@ -20,38 +21,61 @@ int main() {
     ProcessMonitor monitor;
     monitor.start();
     
-    std::string line;
-    while (std::getline(std::cin, line)) {
-        if (!line.empty()) {
-            std::stringstream output;
-            std::istringstream iss(line);
-            std::string command;
-            iss >> command;
-            
-            if (command == "quit") {
-                break;
-            } else if (command == "help") {
-                printHelp();
-            } else if (command == "kill" || command == "suspend" || command == "resume") {
-                int pid;
-                if (iss >> pid) {
-                    bool success = false;
-                    if (command == "kill") {
-                        success = monitor.terminateProcess(pid);
-                    } else if (command == "suspend") {
-                        success = monitor.suspendProcess(pid);
-                    } else if (command == "resume") {
-                        success = monitor.resumeProcess(pid);
-                    }
-                    output << (success ? "Success" : "Failed");
-                } else {
-                    output << "Invalid PID";
+    // Setup terminal for raw input
+    struct termios old_tio, new_tio;
+    tcgetattr(STDIN_FILENO, &old_tio);
+    new_tio = old_tio;
+    new_tio.c_lflag &= (~ICANON & ~ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
+    
+    std::string current_line;
+    char ch;
+
+    while (true) {
+        if(read(STDIN_FILENO, &ch, 1) > 0){
+            if (ch == 127 || ch == '\b') {  // Backspace
+                if (!current_line.empty()) {
+                    current_line.pop_back();
                 }
-            } else {
-                output << "Unknown command. Type 'help' for available commands.";
             }
-            
-            monitor.addCommandHistory(line, output.str());
+            else if (ch == '\n') {
+                if (!current_line.empty()) {
+                    std::stringstream output;
+                    std::istringstream iss(current_line);
+                    std::string command;
+                    iss >> command;
+                    
+                    if (command == "quit") {
+                        break;
+                    } else if (command == "help") {
+                        printHelp();
+                    } else if (command == "kill" || command == "suspend" || command == "resume") {
+                        int pid;
+                        if (iss >> pid) {
+                            bool success = false;
+                            if (command == "kill") {
+                                success = monitor.terminateProcess(pid);
+                            } else if (command == "suspend") {
+                                success = monitor.suspendProcess(pid);
+                            } else if (command == "resume") {
+                                success = monitor.resumeProcess(pid);
+                            }
+                            output << (success ? "Success" : "Failed");
+                        } else {
+                            output << "Invalid PID";
+                        }
+                    } else {
+                        output << "Unknown command. Type 'help' for available commands.";
+                    }
+                    
+                    monitor.setCurrentCommand(current_line, output.str());
+                    current_line = "";
+                }
+            }
+            else{
+                current_line += ch;
+            }
+            monitor.setCurrentCommand(current_line, "");
         }
     }
     

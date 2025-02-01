@@ -159,9 +159,9 @@ void ProcessMonitor::collectData() {
 }
 
 // In process_monitor.cpp, add command history management:
-void ProcessMonitor::addCommandHistory(const std::string& command, const std::string& output) {
-    std::lock_guard<std::mutex> lock(history_mutex_);
-    command_history_.push_back({command, output});
+void ProcessMonitor::setCurrentCommand(const std::string& command, const std::string& output) {
+    current_command_ = command;
+    current_output_ = output;
 }
 
 void ProcessMonitor::updateUI() {
@@ -175,8 +175,6 @@ void ProcessMonitor::updateUI() {
         {
             std::lock_guard<std::mutex> lock(processes_mutex_);
             current_processes = processes_;
-            std::lock_guard<std::mutex> history_lock(history_mutex_);
-            current_history = command_history_;
         }
         
         // If first run, clear screen
@@ -212,12 +210,12 @@ void ProcessMonitor::updateUI() {
         // Separator between process list and command history
         std::cout << std::string(70, '-') << "\n";
         
-        // Display command history
-        for (const auto& cmd : current_history) {
+        // Display current command and output
+        if (!current_command_.empty()) {
             std::cout << "\033[K";  // Clear line
-            std::cout << "Command > " << cmd.command << "\n";
-            if (!cmd.output.empty()) {
-                std::cout << cmd.output << "\n";
+            std::cout << "Command > " << current_command_ << "\n";
+            if (!current_output_.empty()) {
+                std::cout << current_output_ << "\n";
             }
         }
         
