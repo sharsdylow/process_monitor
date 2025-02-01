@@ -56,7 +56,7 @@ int main() {
                             } else if (command == "resume") {
                                 success = monitor.resumeProcess(pid);
                             }
-                            output << (success ? "Success" : "Failed");
+                            output << command << " " << pid << (success ? "Success " : "Failed ");
                         } else {
                             output << "Invalid PID";
                         }
@@ -75,6 +75,7 @@ int main() {
     }
     
     // Restore terminal settings
+    std::cout << '\n';
     tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
     monitor.stop();
     return 0;

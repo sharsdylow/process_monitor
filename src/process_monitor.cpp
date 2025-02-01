@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <sys/ioctl.h>  // For ioctl and winsize
 #include <unistd.h>
+#include <algorithm>
 
 ProcessMonitor::ProcessMonitor() = default;
 
@@ -160,8 +161,6 @@ void ProcessMonitor::collectData() {
 
 void ProcessMonitor::updateUI() {
     bool first_run = true;
-    int last_displayed_lines = 0;
-    const int process_display_limit = 10;  // Limit process list height
 
     while (running_) {
         std::vector<ProcessInfo> current_processes;
@@ -171,14 +170,18 @@ void ProcessMonitor::updateUI() {
             current_processes = processes_;
         }
         
+        // Get terminal size
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+        
+        // Calculate available lines for process list
+        int header_lines = 3;  // Title + column headers + separator
+        int command_lines = 2; // Previous command + current typing
+        command_lines += std::ranges::count(current_output, '\n');
+        int available_lines = w.ws_row - (header_lines + command_lines);
+
         // If first run, clear screen
-        if (first_run) {
-            std::cout << "\033[2J\033[H";
-            first_run = false;
-        } else {
-            // Move cursor to top
-            std::cout << "\033[H";
-        }
+        std::cout << "\033[2J\033[H";
         
         // Display process list (top section)
         std::cout << "Process Monitor (Type 'help' for commands)\n";
@@ -191,7 +194,7 @@ void ProcessMonitor::updateUI() {
         
         // Display limited number of processes
         for (size_t i = 0; i < std::min(current_processes.size(), 
-                                      static_cast<size_t>(process_display_limit)); ++i) {
+                                      static_cast<size_t>(available_lines)); ++i) {
             const auto& proc = current_processes[i];
             std::cout << "\033[K";  // Clear line
             std::cout << std::setw(8) << proc.pid
@@ -199,6 +202,12 @@ void ProcessMonitor::updateUI() {
                       << std::setw(10) << std::fixed << std::setprecision(1) << proc.cpu_usage
                       << std::setw(12) << proc.memory_usage
                       << std::setw(20) << proc.status << "\n";
+        }
+
+        // Display empty lines if available lines > size
+        int empty_lines = static_cast<size_t>(available_lines) - current_processes.size();
+        if(empty_lines > 0){
+            std::cout << std::string(empty_lines, '\n');
         }
         
         // Separator between process list and command history
