@@ -8,6 +8,8 @@
 #include <condition_variable>
 #include <unordered_map>
 
+#define RATE 1000
+
 struct ProcessInfo {
     int pid;
     std::string name;
