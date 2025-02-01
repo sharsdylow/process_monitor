@@ -3,6 +3,8 @@
 #include <iostream>
 #include <thread>
 #include <sstream>
+#include <sys/ioctl.h>  // For ioctl and winsize
+#include <unistd.h>
 
 void printHelp() {
     std::cout << "Available commands:\n"
@@ -17,10 +19,16 @@ int main() {
     ProcessMonitor monitor;
     monitor.start();
     
-    std::cout << "Process Monitor started. Type 'help' for commands.\n";
+    // Move cursor to the last line
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    std::cout << "\033[" << w.ws_row << ";1H";
+    
+    std::cout << "Command > " << std::flush;
     
     std::string line;
     while (std::getline(std::cin, line)) {
+        // Process commands
         std::istringstream iss(line);
         std::string command;
         iss >> command;
@@ -44,9 +52,12 @@ int main() {
             } else {
                 std::cout << "Invalid PID\n";
             }
-        } else {
+        } else if (!command.empty()) {
             std::cout << "Unknown command. Type 'help' for available commands.\n";
         }
+        
+        // Show prompt again
+        std::cout << "Command > " << std::flush;
     }
     
     monitor.stop();

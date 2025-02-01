@@ -7,6 +7,8 @@
 #include <signal.h>
 #include <sstream>
 #include <iomanip>
+#include <sys/ioctl.h>  // For ioctl and winsize
+#include <unistd.h>
 
 ProcessMonitor::ProcessMonitor() = default;
 
@@ -157,6 +159,9 @@ void ProcessMonitor::collectData() {
 }
 
 void ProcessMonitor::updateUI() {
+    const int reserved_lines = 2;  // Space for input prompt and command
+    std::string input_line;        // To store current input line
+
     while (running_) {
         std::vector<ProcessInfo> current_processes;
         {
@@ -164,8 +169,13 @@ void ProcessMonitor::updateUI() {
             current_processes = processes_;
         }
         
-        system("clear");
-        std::cout << "Process Monitor\n";
+        // Save cursor position and clear screen
+        std::cout << "\033[s";  // Save cursor position
+        std::cout << "\033[2J"; // Clear entire screen
+        std::cout << "\033[H";  // Move cursor to home position
+        
+        // Header
+        std::cout << "Process Monitor (Type 'help' for commands)\n";
         std::cout << std::setw(8) << "PID" 
                   << std::setw(20) << "NAME"
                   << std::setw(10) << "CPU%"
@@ -173,13 +183,36 @@ void ProcessMonitor::updateUI() {
                   << std::setw(20) << "STATUS\n";
         std::cout << std::string(70, '-') << "\n";
         
+        // Get terminal size
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+        int terminal_height = w.ws_row - reserved_lines;
+        
+        // Display processes
+        int displayed_lines = 0;
         for (const auto& proc : current_processes) {
+            if (displayed_lines >= terminal_height - 4) {
+                break;
+            }
+            
             std::cout << std::setw(8) << proc.pid
                       << std::setw(20) << proc.name
                       << std::setw(10) << std::fixed << std::setprecision(1) << proc.cpu_usage
                       << std::setw(12) << proc.memory_usage
                       << std::setw(20) << proc.status << "\n";
+            
+            displayed_lines++;
         }
+        
+        // Add separator line
+        std::cout << std::string(70, '-') << "\n";
+        
+        // Move to last line and show prompt
+        std::cout << "\033[" << w.ws_row << ";1H"; // Move to last line
+        std::cout << "Command > " << std::flush;
+        
+        // Move cursor back to saved position
+        std::cout << "\033[u" << std::flush;
         
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
