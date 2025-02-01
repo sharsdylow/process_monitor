@@ -67,15 +67,14 @@ int main() {
                     } else {
                         output << "Unknown command. Type 'help' for available commands.";
                     }
-                    
-                    monitor.setCurrentCommand(current_line, output.str());
+                    monitor.current_output = output.str();
                     current_line = "";
                 }
             }
             else{
                 current_line += ch;
             }
-            monitor.setCurrentCommand(current_line, "");
+            monitor.current_command = current_line;
         }
     }
     

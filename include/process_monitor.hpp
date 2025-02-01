@@ -41,6 +41,8 @@ public:
     bool resumeProcess(int pid);
     
     std::vector<ProcessInfo> getProcessList() const;
+    std::string current_command;
+    std::string current_output;
 
 private:
     void collectData();
@@ -64,7 +66,4 @@ private:
     std::thread data_thread_;
     std::thread ui_thread_;
     std::condition_variable cv_;
-
-    std::string current_command_;
-    std::string current_output_;
 };

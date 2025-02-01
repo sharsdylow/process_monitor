@@ -158,12 +158,6 @@ void ProcessMonitor::collectData() {
     }
 }
 
-// In process_monitor.cpp, add command history management:
-void ProcessMonitor::setCurrentCommand(const std::string& command, const std::string& output) {
-    current_command_ = command;
-    current_output_ = output;
-}
-
 void ProcessMonitor::updateUI() {
     bool first_run = true;
     int last_displayed_lines = 0;
@@ -211,11 +205,11 @@ void ProcessMonitor::updateUI() {
         std::cout << std::string(70, '-') << "\n";
         
         // Display current command and output
-        if (!current_command_.empty()) {
+        if (!current_command.empty()) {
             std::cout << "\033[K";  // Clear line
-            std::cout << "Command > " << current_command_ << "\n";
-            if (!current_output_.empty()) {
-                std::cout << current_output_ << "\n";
+            std::cout << "Command > " << current_command << "\n";
+            if (!current_output.empty()) {
+                std::cout << current_output << "\n";
             }
         }
         
@@ -223,7 +217,7 @@ void ProcessMonitor::updateUI() {
         std::cout << "\033[K";  // Clear line
         std::cout << "Command > " << std::flush;
         
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(RATE));
     }
 }
 
